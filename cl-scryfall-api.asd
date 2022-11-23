@@ -3,7 +3,8 @@
   :author "nmunro"
   :license "BSD3-Clause"
   :depends-on (:dexador
-               :cl-json)
+               :cl-json
+               :serapeum)
   :components ((:module "src"
                 :components
                 ((:file "main"))))

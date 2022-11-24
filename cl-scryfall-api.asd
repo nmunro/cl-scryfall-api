@@ -4,7 +4,8 @@
   :license "BSD3-Clause"
   :depends-on (:dexador
                :cl-json
-               :serapeum)
+               :serapeum
+               :cl-sqlite)
   :components ((:module "src"
                 :components
                 ((:file "main"))))

@@ -1,88 +1,48 @@
 (defpackage cl-scryfall-api/bulk-data
-  (:use :cl))
+  (:use :cl)
+  (:export #:get-bulk-data))
 
 (in-package cl-scryfall-api/bulk-data)
 
-(defconstant +oracle-cards+ "https://data.scryfall.io/oracle-cards/oracle-cards-20221121100237.json")
-(defconstant +unique-artwork+ "https://data.scryfall.io/unique-artwork/unique-artwork-20221121100329.json")
-(defconstant +default-cards+ "https://data.scryfall.io/default-cards/default-cards-20221121100557.json")
-(defconstant +all-cards+ "https://data.scryfall.io/all-cards/all-cards-20221121101623.json")
-(defconstant +all-rulings+ "https://data.scryfall.io/rulings/rulings-20221121100027.json")
+(defconstant +bulk-data-url+ "https://api.scryfall.com/bulk-data")
+(defconstant +bulk-data-db+ (merge-pathnames #p"bulk-data.db" cl-scryfall-api/config:+config-dir+))
 
 (defun process-json (&optional file)
   "Make sure you have --dynamic-size (in sbcl) set high enough to process the json files"
-  (cond
-    ((eq file :oracle-cards)
-     (let ((path (merge-pathnames #p"oracle.json" cl-scryfall-api/config:+config-dir+)))
-       (with-open-file (s path :direction :input :if-does-not-exist nil)
-        (cl-json:decode-json-from-source s))))
-
-    ((eq file :unique-artwork)
-     (let ((path (merge-pathnames #p"unique-artwork.json" cl-scryfall-api/config:+config-dir+)))
-       (with-open-file (s path :direction :input :if-does-not-exist nil)
-        (cl-json:decode-json-from-source s))))
-
-    ((eq file :all-cards)
-     (let ((path (merge-pathnames #p"all-cards.json" cl-scryfall-api/config:+config-dir+)))
-       (with-open-file (s path :direction :input :if-does-not-exist nil)
-        (cl-json:decode-json-from-source s))))
-
-    ((eq file :all-rulings)
-     (let ((path (merge-pathnames #p"rulings.json" cl-scryfall-api/config:+config-dir+)))
-       (with-open-file (s path :direction :input :if-does-not-exist nil)
-        (cl-json:decode-json-from-source s))))
-
-    (t
-     (let ((path (merge-pathnames #p"default.json" cl-scryfall-api/config:+config-dir+)))
-       (with-open-file (s path :direction :input :if-does-not-exist nil)
-        (cl-json:decode-json-from-source s))))))
-
-(defun get-json (url dest)
+  nil)
+  
+(defun download-data (url dest)
   (serapeum:write-stream-into-file (dexador:get url :want-stream t) dest :if-exists :supersede))
 
-(defun get-bulk-data (&optional download-type)
-  (cond
-    ((eq download-type :oracle-cards)
-     (let ((path (merge-pathnames #p"oracle.json" cl-scryfall-api/config:+config-dir+)))
-       (format t "Beginning download of: oracle.json... ")
-       (force-output)
-       (get-json +oracle-cards+ path)
-       (format t "Done!~%")))
+(defun make-download-path-name (item)
+  (merge-pathnames (format nil "~A.json" (getf item :type)) cl-scryfall-api/config:+config-dir+))
 
-    ((eq download-type :unique-artwork)
-     (let ((path (merge-pathnames #p"unique-artwork.json" cl-scryfall-api/config:+config-dir+)))
-       (format t "Beginning download of: unique-artwork.json... ")
-       (force-output)
-       (get-json +unique-artwork+ path)
-       (format t "Done!~%")))
+(defun process-bulk-data-object (object)
+  `(:type ,(cdr (assoc :type object)) :uri ,(cdr (assoc :download--uri object))))
 
-    ((eq download-type :all-cards)
-     (let ((path (merge-pathnames #p"all-cards.json" cl-scryfall-api/config:+config-dir+)))
-       (format t "Beginning download of: all-cards.json... ")
-       (force-output)
-       (get-json +all-cards+ path)
-       (format t "Done!~%")))
+(defun download-json-file (item count length)
+    (format t "Downloading ~A/~A ~A..." count length (getf item :type))
+    (force-output)
+    (download-data (getf item :uri) (make-download-path-name item))
+    (format t " Done!~%"))
 
-    ((eq download-type :all-rulings)
-     (let ((path (merge-pathnames #p"rulings.json" cl-scryfall-api/config:+config-dir+)))
-       (format t "Beginning download of: rulings.json... ")
-       (force-output)
-       (get-json +all-rulings+ path)
-       (format t "Done!~%")))
+(defun recover ()
+  (format t " Failed!~%"))
+  
+(defun get-bulk-data ()
+ (multiple-value-bind (body status headers)
+     (dexador:get +bulk-data-url+)
+   (declare (ignore status))
+   (declare (ignore headers))
 
-    (t
-     (let ((path (merge-pathnames #p"default.json" cl-scryfall-api/config:+config-dir+)))
-       (format t "Beginning download of: default.json... ")
-       (force-output)
-       (get-json +default-cards+ path)
-       (format t "Done!~%")))))
-
+   (let ((data (cl-json:decode-json-from-string body))
+	 (count 1))
+     (dolist (item (mapcar #'process-bulk-data-object (cdr (assoc :data data))))
+       (handler-case (download-json-file item count (length (cdr (assoc :data data))))
+         (error (err) (recover)))
+       (incf count)))))
+       
 ;; (get-bulk-data)
-;; (process-json)
-
-(get-bulk-data :all-rulings)
-;(process-json :all-rulings)
-(process-json)
 
 ;; (ql:quickload :dexador)
 ;; (ql:quickload :cl-json)

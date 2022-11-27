@@ -5,10 +5,12 @@
   :depends-on (:dexador
                :cl-json
                :serapeum
-               :cl-sqlite)
+               :sqlite)
   :components ((:module "src"
                 :components
-                ((:file "main"))))
+                ((:file "config")
+		 (:file "bulk-data")
+		 (:file "main"))))
   :description "Generate a skeleton for modern project"
   :in-order-to ((test-op (test-op "cl-scryfall-api/tests"))))
 
